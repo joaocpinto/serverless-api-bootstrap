@@ -1,0 +1,15 @@
+---
+ci:
+    - .github/*
+    - .github/**/*
+    - .pre-commit-config.yaml
+
+documentation:
+    - ./*.md
+    - docs/*
+    - docs/**/*
+
+api:
+    - src/*
+    - src/**/*
+    - serverless.yml
