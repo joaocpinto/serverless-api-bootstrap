@@ -1,0 +1,108 @@
+---
+service: hello-world
+
+frameworkVersion: '>=2.60.0'
+configValidationMode: warn
+
+plugins:
+  - serverless-python-requirements
+  - serverless-iam-roles-per-function
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage,"dev"}
+  region: ${opt:region,"eu-west-1"}
+  timeout: 30
+  memorySize: 128
+  logRetentionInDays: 14
+  versionFunctions: false
+  environment:
+    ${file(config/global-environment-variables.yml)}
+  apiGateway:
+    shouldStartNameWithService: true
+  tags: ${self:custom.tags}
+  stackTags: ${self:custom.tags}
+
+custom:
+  base_name: ${self:provider.stage}-${self:service}
+  dynamodb_table: ${self:custom.base_name}-user
+  tags:
+    ${file(config/custom-tags.yml)}
+  pythonRequirements:
+    pythonBin: /urs/bin/python3
+    useStaticCache: true
+    useDownloadCache: true
+    cacheLocation: '.env/requirements_cache'
+    dockerizePip: false
+    layer:
+      name: ${self:custom.base_name}
+      description: Python requirements lambda layer
+      compatibleRuntimes:
+        - python3.8
+      licenseInfo: GPLv3
+      allowedAccounts:
+        - "*"
+
+package:
+  individually: true
+  patterns:
+    - '!*/**'
+    - src/helper/config.py
+    - src/helper/tools.py
+    - src/service/dynamodb.py
+    - src/model/user.py
+    - src/controller/user.py
+
+functions:
+  SaveUser:
+    handler: src/handler/save_user.handler
+    package:
+      patterns:
+        src/handler/save_user.py
+    events:
+      - http:
+          path: hello/{username}
+          method: put
+    iamRoleStatementsName: ${self:custom.base_name}-DynamoDB-save
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - dynamodb:PutItem
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.dynamodb_table}"
+    layers:
+      - {Ref: PythonRequirementsLambdaLayer}
+
+  GetUser:
+    handler: src/handler/get_user.handler
+    package:
+      patterns:
+        src/handler/get_user.py
+    events:
+      - http:
+          path: hello/{username}
+          method: get
+    iamRoleStatementsName: ${self:custom.base_name}-DynamoDB-get
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - dynamodb:GetItem
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.dynamodb_table}"
+    layers:
+      - {Ref: PythonRequirementsLambdaLayer}
+
+resources:
+  Resources:
+    DynamoDBUserTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.dynamodb_table}

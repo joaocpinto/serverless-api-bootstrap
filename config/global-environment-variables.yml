@@ -1,0 +1,4 @@
+---
+REGION: ${self:provider.region}
+DYNAMODB_TABLE: ${self:custom.dynamodb_table}
+LOG_LEVEL: "DEBUG"

@@ -1,0 +1,3 @@
+---
+"infrastructure:deploy-tool": "serverless-framework"
+"service:name": ${self:custom.base_name}
